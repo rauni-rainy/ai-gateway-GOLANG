@@ -5,6 +5,9 @@ import (
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/joho/godotenv"
+	"github.com/rauni-rainy/ai-gateway/internal/config"
 )
 
 type HealthResponse struct {
@@ -30,10 +33,16 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	_ = godotenv.Load() // Load .env file if it exists, ignore error if missing
+
+	cfg := config.LoadConfig()
+	log.Printf("Loaded config: %s", cfg.String())
+
 	http.HandleFunc("/health", healthHandler)
 
-	log.Println("AI Gateway starting on :8080")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	addr := ":" + cfg.Port
+	log.Printf("AI Gateway starting on %s", addr)
+	if err := http.ListenAndServe(addr, nil); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}
 }

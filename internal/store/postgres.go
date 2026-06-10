@@ -115,3 +115,8 @@ func (s *Store) GetDailySpend(ctx context.Context, apiKeyID string) (float64, er
 func (s *Store) Close() {
 	s.pool.Close()
 }
+
+func (s *Store) Ping(ctx context.Context) error {
+	return s.pool.Ping(ctx)
+}
+

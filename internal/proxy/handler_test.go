@@ -15,7 +15,6 @@ import (
 	"github.com/rauni-rainy/ai-gateway/internal/middleware"
 	"github.com/rauni-rainy/ai-gateway/internal/models"
 	"github.com/rauni-rainy/ai-gateway/internal/proxy"
-	"github.com/redis/go-redis/v9"
 )
 
 type MockProvider struct {
@@ -86,6 +85,7 @@ func TestProxyHandler(t *testing.T) {
 		rec := sendReq(map[string]interface{}{
 			"provider": "groq",
 			"model": "llama3",
+			"max_tokens": 100,
 			"messages": []map[string]string{{"role": "user", "content": "hello"}},
 		})
 
@@ -108,6 +108,7 @@ func TestProxyHandler(t *testing.T) {
 		rec := sendReq(map[string]interface{}{
 			"provider": "groq",
 			"model": "llama3",
+			"max_tokens": 100,
 			"messages": []map[string]string{{"role": "user", "content": "hello"}},
 		})
 
@@ -124,9 +125,10 @@ func TestProxyHandler(t *testing.T) {
 
 	t.Run("unknown provider -> 400", func(t *testing.T) {
 		rec := sendReq(map[string]interface{}{
-			"provider": "unknown",
-			"model": "llama3",
-			"messages": []map[string]string{{"role": "user", "content": "hello"}},
+			"provider":   "unknown",
+			"model":      "llama3",
+			"max_tokens": 100,
+			"messages":   []map[string]string{{"role": "user", "content": "hello"}},
 		})
 
 		if rec.Code != http.StatusBadRequest {
@@ -140,9 +142,10 @@ func TestProxyHandler(t *testing.T) {
 		}
 
 		rec := sendReq(map[string]interface{}{
-			"provider": "groq",
-			"model": "llama3-new", // different model to bust cache
-			"messages": []map[string]string{{"role": "user", "content": "hello"}},
+			"provider":   "groq",
+			"model":      "llama3-new",
+			"max_tokens": 100,
+			"messages":   []map[string]string{{"role": "user", "content": "hello"}},
 		})
 
 		if rec.Code != 429 {
@@ -159,9 +162,10 @@ func TestProxyHandler(t *testing.T) {
 		}
 
 		rec := sendReq(map[string]interface{}{
-			"provider": "groq",
-			"model": "llama3-fail", // different model to bust cache
-			"messages": []map[string]string{{"role": "user", "content": "hello"}},
+			"provider":   "groq",
+			"model":      "llama3-fail",
+			"max_tokens": 100,
+			"messages":   []map[string]string{{"role": "user", "content": "hello"}},
 		})
 
 		if rec.Code != http.StatusBadGateway {

@@ -120,7 +120,7 @@ func TestGatewayE2E(t *testing.T) {
 	}
 
 	rateLimiter := middleware.NewRateLimiter(cacheLayer.Client())
-	proxyHandler := proxy.NewHandler(cacheLayer, storeLayer, providers)
+	proxyHandler := proxy.NewHandler(cacheLayer, nil, storeLayer, providers)
 
 	r := chi.NewRouter()
 	r.Group(func(r chi.Router) {

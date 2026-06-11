@@ -79,7 +79,8 @@ func main() {
 
 	rateLimiter := middleware.NewRateLimiter(cacheLayer.Client())
 	budgetEnforcer := middleware.NewBudgetEnforcer(storeLayer, cacheLayer.Client())
-	proxyHandler := proxy.NewHandler(cacheLayer, storeLayer, providers)
+	semanticCache := cache.NewSemanticCache(storeLayer.Pool(), &cache.TFIDFEmbedder{})
+	proxyHandler := proxy.NewHandler(cacheLayer, semanticCache, storeLayer, providers)
 
 	r := chi.NewRouter()
 

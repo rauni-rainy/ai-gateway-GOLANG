@@ -33,7 +33,7 @@ func BenchmarkCacheHit(b *testing.B) {
 		},
 	}
 	providers := map[string]proxy.Provider{"mock": mockProv}
-	handler := proxy.NewHandler(c, mockStore, providers)
+	handler := proxy.NewHandler(c, nil, mockStore, providers)
 
 	mw := middleware.Auth(mockStore)
 	server := mw(handler)
@@ -80,7 +80,7 @@ func BenchmarkCacheMiss(b *testing.B) {
 		},
 	}
 	providers := map[string]proxy.Provider{"mock": mockProv}
-	handler := proxy.NewHandler(c, mockStore, providers)
+	handler := proxy.NewHandler(c, nil, mockStore, providers)
 
 	mw := middleware.Auth(mockStore)
 	server := mw(handler)

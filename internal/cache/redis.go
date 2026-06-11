@@ -117,6 +117,11 @@ func (c *Cache) Delete(ctx context.Context, req *models.GatewayRequest) error {
 var ErrLockTimeout = errors.New("lock wait timeout exceeded")
 
 func (c *Cache) GetOrLock(ctx context.Context, req *models.GatewayRequest) (*models.GatewayResponse, bool, error) {
+	// 0. Check cache first before trying lock
+	if cached, err := c.Get(ctx, req); err == nil && cached != nil {
+		return cached, false, nil
+	}
+
 	hash := c.RequestHash(req)
 	lockKey := "lock:" + hash
 	channel := "notify:" + hash

@@ -63,7 +63,7 @@ func TestProxyHandler(t *testing.T) {
 		"groq": mockProv,
 	}
 
-	handler := proxy.NewHandler(c, mockStore, providers)
+	handler := proxy.NewHandler(c, nil, mockStore, providers)
 	
 	// Wrap in auth middleware so context has APIKey injected cleanly
 	mw := middleware.Auth(mockStore)
@@ -148,10 +148,10 @@ func TestProxyHandler(t *testing.T) {
 			"messages":   []map[string]string{{"role": "user", "content": "hello"}},
 		})
 
-		if rec.Code != 429 {
-			t.Fatalf("expected 429, got %d", rec.Code)
+		if rec.Code != 503 {
+			t.Fatalf("expected 503, got %d", rec.Code)
 		}
-		if !bytes.Contains(rec.Body.Bytes(), []byte("too many requests")) {
+		if !bytes.Contains(rec.Body.Bytes(), []byte("all providers unavailable")) {
 			t.Errorf("expected body to contain error message, got %s", rec.Body.String())
 		}
 	})
@@ -168,8 +168,8 @@ func TestProxyHandler(t *testing.T) {
 			"messages":   []map[string]string{{"role": "user", "content": "hello"}},
 		})
 
-		if rec.Code != http.StatusBadGateway {
-			t.Fatalf("expected 502, got %d", rec.Code)
+		if rec.Code != 503 {
+			t.Fatalf("expected 503, got %d", rec.Code)
 		}
 	})
 }

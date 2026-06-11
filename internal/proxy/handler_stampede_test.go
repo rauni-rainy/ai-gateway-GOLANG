@@ -48,7 +48,7 @@ func TestCacheStampedePrevention(t *testing.T) {
 		"groq": mockProv,
 	}
 
-	handler := proxy.NewHandler(c, mockStore, providers)
+	handler := proxy.NewHandler(c, nil, mockStore, providers)
 	
 	// Wrap in auth middleware
 	mw := middleware.Auth(mockStore)

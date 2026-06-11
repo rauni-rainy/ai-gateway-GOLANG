@@ -16,22 +16,24 @@ import (
 )
 
 type Handler struct {
-	providers map[string]Provider
-	breakers  map[string]*CircuitBreaker
-	cache     *cache.Cache
-	store     store.LogInserter
+	providers     map[string]Provider
+	breakers      map[string]*CircuitBreaker
+	cache         *cache.Cache
+	semanticCache *cache.SemanticCache
+	store         store.LogInserter
 }
 
-func NewHandler(c *cache.Cache, s store.LogInserter, providers map[string]Provider) *Handler {
+func NewHandler(c *cache.Cache, sc *cache.SemanticCache, s store.LogInserter, providers map[string]Provider) *Handler {
 	breakers := make(map[string]*CircuitBreaker)
 	for name := range providers {
 		breakers[name] = NewCircuitBreaker(name, 5, 30*time.Second)
 	}
 	return &Handler{
-		cache:     c,
-		store:     s,
-		providers: providers,
-		breakers:  breakers,
+		cache:         c,
+		semanticCache: sc,
+		store:         s,
+		providers:     providers,
+		breakers:      breakers,
 	}
 }
 
@@ -54,7 +56,18 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Safe because Auth middleware guarantees it is populated
 	apiKey, _ := middleware.APIKeyFromContext(r.Context())
 
-	// 1. Check Cache with Stampede Protection
+	// 0. Check Semantic Cache
+	if h.semanticCache != nil {
+		if semCached, _ := h.semanticCache.FindSimilar(r.Context(), &req); semCached != nil {
+			w.Header().Set("X-Cache", "SEMANTIC-HIT")
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(semCached)
+			h.logAsync(apiKey.ID, semCached, http.StatusOK)
+			return
+		}
+	}
+
+	// 1. Check Exact Cache with Stampede Protection
 	cached, isOwner, err := h.cache.GetOrLock(r.Context(), &req)
 	if err != nil {
 		// If lock wait times out or pubsub fails, just fall back to making the provider call directly
@@ -140,6 +153,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		go func() {
 			if err := h.cache.PublishResult(context.Background(), &req, resp); err != nil {
 				fmt.Printf("cache publish result error: %v\n", err)
+			}
+			if h.semanticCache != nil {
+				if err := h.semanticCache.Store(context.Background(), &req, resp); err != nil {
+					fmt.Printf("semantic cache store error: %v\n", err)
+				}
 			}
 		}()
 	}

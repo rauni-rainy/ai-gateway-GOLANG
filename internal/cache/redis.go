@@ -113,3 +113,72 @@ func (c *Cache) Delete(ctx context.Context, req *models.GatewayRequest) error {
 	}
 	return nil
 }
+
+var ErrLockTimeout = errors.New("lock wait timeout exceeded")
+
+func (c *Cache) GetOrLock(ctx context.Context, req *models.GatewayRequest) (*models.GatewayResponse, bool, error) {
+	hash := c.RequestHash(req)
+	lockKey := "lock:" + hash
+	channel := "notify:" + hash
+
+	// 1. Try acquiring the lock
+	acquired, err := c.client.SetNX(ctx, lockKey, "1", 30*time.Second).Result()
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to setnx: %w", err)
+	}
+
+	if acquired {
+		return nil, true, nil // Caller owns the lock and must make the provider call
+	}
+
+	// 2. Lock not acquired, we are a subscriber
+	pubsub := c.client.Subscribe(ctx, channel)
+	defer pubsub.Close()
+
+	// Wait for the result
+	select {
+	case <-ctx.Done():
+		return nil, false, ctx.Err()
+	case <-time.After(35 * time.Second):
+		return nil, false, ErrLockTimeout
+	case msg := <-pubsub.Channel():
+		var resp models.GatewayResponse
+		if err := json.Unmarshal([]byte(msg.Payload), &resp); err != nil {
+			return nil, false, fmt.Errorf("failed to unmarshal pubsub payload: %w", err)
+		}
+		resp.Cached = true
+		return &resp, false, nil
+	}
+}
+
+func (c *Cache) PublishResult(ctx context.Context, req *models.GatewayRequest, resp *models.GatewayResponse) error {
+	hash := c.RequestHash(req)
+	
+	// Copy and zero out fields to match cache schema
+	respCopy := *resp
+	respCopy.LatencyMS = 0
+	respCopy.Cached = false
+
+	jsonData, err := json.Marshal(&respCopy)
+	if err != nil {
+		return fmt.Errorf("failed to marshal for publish: %w", err)
+	}
+
+	// Persist to cache
+	if err := c.Set(ctx, req, resp); err != nil {
+		return fmt.Errorf("failed to set cache: %w", err)
+	}
+
+	// Publish to channel
+	if err := c.client.Publish(ctx, "notify:"+hash, jsonData).Err(); err != nil {
+		return fmt.Errorf("failed to publish: %w", err)
+	}
+
+	// Delete lock
+	if err := c.client.Del(ctx, "lock:"+hash).Err(); err != nil {
+		return fmt.Errorf("failed to delete lock: %w", err)
+	}
+
+	return nil
+}
+

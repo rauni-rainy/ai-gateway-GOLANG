@@ -44,17 +44,18 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Safe because Auth middleware guarantees it is populated
 	apiKey, _ := middleware.APIKeyFromContext(r.Context())
 
-	// 1. Check Cache
-	cached, err := h.cache.Get(r.Context(), &req)
+	// 1. Check Cache with Stampede Protection
+	cached, isOwner, err := h.cache.GetOrLock(r.Context(), &req)
 	if err != nil {
-		fmt.Printf("cache get error: %v\n", err)
+		// If lock wait times out or pubsub fails, just fall back to making the provider call directly
+		fmt.Printf("cache get or lock error: %v\n", err)
+		isOwner = true // act as owner to ensure the user gets a response
 	}
 	if cached != nil {
+		// Subscriber got the response via pubsub
 		w.Header().Set("X-Cache", "HIT")
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(cached)
-		
-		// Fire-and-forget logging for billing
 		h.logAsync(apiKey.ID, cached, http.StatusOK)
 		return
 	}
@@ -66,7 +67,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 3. Execute Request
+	// 3. Execute Request (only the owner gets here)
 	start := time.Now()
 	resp, err := provider.Complete(r.Context(), &req)
 	if err != nil {
@@ -74,12 +75,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if isProviderErr {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(pErr.StatusCode)
-			// Return the exact error message from the provider directly to the user
 			json.NewEncoder(w).Encode(map[string]string{"error": pErr.Message})
 			return
 		}
-		
-		// Generic HTTP failures or network timeouts
 		writeError(w, "provider request failed", http.StatusBadGateway)
 		return
 	}
@@ -89,12 +87,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	resp.LatencyMS = time.Since(start).Milliseconds()
 
 	// 5. Async background tasks
-	// Cache the result. Background context used to prevent client disconnect from killing the write
-	go func() {
-		if err := h.cache.Set(context.Background(), &req, resp); err != nil {
-			fmt.Printf("cache set error: %v\n", err)
-		}
-	}()
+	if isOwner {
+		// Background context because request context may cancel before publish completes
+		go func() {
+			if err := h.cache.PublishResult(context.Background(), &req, resp); err != nil {
+				fmt.Printf("cache publish result error: %v\n", err)
+			}
+		}()
+	}
 
 	h.logAsync(apiKey.ID, resp, http.StatusOK)
 

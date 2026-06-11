@@ -94,22 +94,35 @@ func (s *Store) InsertLog(ctx context.Context, log *models.RequestLog) error {
 }
 
 func (s *Store) GetDailySpend(ctx context.Context, apiKeyID string) (float64, error) {
-	var total *float64
+	// 1. Try querying the fast materialized view first
+	var mvTotal *float64
 	err := s.pool.QueryRow(ctx, `
-		SELECT SUM(cost_usd)
-		FROM request_logs
-		WHERE api_key_id = $1 AND created_at >= CURRENT_DATE
-	`, apiKeyID).Scan(&total)
+		SELECT total_usd
+		FROM daily_spend_mv
+		WHERE api_key_id = $1 AND day = DATE(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
+	`, apiKeyID).Scan(&mvTotal)
 
-	if err != nil {
-		return 0, fmt.Errorf("failed to calculate daily spend: %w", err)
+	// If the view hasn't been refreshed for today yet or has no rows for this key, 
+	// fallback to the direct aggregation query.
+	if err != nil || mvTotal == nil {
+		var total *float64
+		fallbackErr := s.pool.QueryRow(ctx, `
+			SELECT SUM(cost_usd)
+			FROM request_logs
+			WHERE api_key_id = $1 AND created_at >= DATE(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
+		`, apiKeyID).Scan(&total)
+
+		if fallbackErr != nil {
+			return 0, fmt.Errorf("failed to calculate daily spend (fallback): %w", fallbackErr)
+		}
+
+		if total == nil {
+			return 0, nil
+		}
+		return *total, nil
 	}
 
-	if total == nil {
-		return 0, nil
-	}
-
-	return *total, nil
+	return *mvTotal, nil
 }
 
 func (s *Store) Close() {

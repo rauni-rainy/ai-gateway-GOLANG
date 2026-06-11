@@ -78,6 +78,7 @@ func main() {
 	}
 
 	rateLimiter := middleware.NewRateLimiter(cacheLayer.Client())
+	budgetEnforcer := middleware.NewBudgetEnforcer(storeLayer, cacheLayer.Client())
 	proxyHandler := proxy.NewHandler(cacheLayer, storeLayer, providers)
 
 	r := chi.NewRouter()
@@ -126,6 +127,7 @@ func main() {
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.Auth(storeLayer))
 		r.Use(middleware.RateLimit(rateLimiter))
+		r.Use(middleware.EnforceBudget(budgetEnforcer))
 		r.Post("/v1/complete", proxyHandler.ServeHTTP)
 	})
 

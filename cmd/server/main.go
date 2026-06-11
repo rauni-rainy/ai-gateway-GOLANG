@@ -129,6 +129,21 @@ func main() {
 		r.Use(middleware.RateLimit(rateLimiter))
 		r.Use(middleware.EnforceBudget(budgetEnforcer))
 		r.Post("/v1/complete", proxyHandler.ServeHTTP)
+		
+		r.Get("/v1/providers/health", func(w http.ResponseWriter, r *http.Request) {
+			breakers := proxyHandler.GetBreakers()
+			status := make(map[string]interface{})
+			for name, cb := range breakers {
+				status[name] = map[string]interface{}{
+					"state":     cb.State(),
+					"failures":  cb.Failures(),
+					"threshold": cb.Threshold(),
+				}
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(status)
+		})
 	})
 
 	server := &http.Server{

@@ -17,16 +17,26 @@ import (
 
 type Handler struct {
 	providers map[string]Provider
+	breakers  map[string]*CircuitBreaker
 	cache     *cache.Cache
 	store     store.LogInserter
 }
 
 func NewHandler(c *cache.Cache, s store.LogInserter, providers map[string]Provider) *Handler {
+	breakers := make(map[string]*CircuitBreaker)
+	for name := range providers {
+		breakers[name] = NewCircuitBreaker(name, 5, 30*time.Second)
+	}
 	return &Handler{
 		cache:     c,
 		store:     s,
 		providers: providers,
+		breakers:  breakers,
 	}
+}
+
+func (h *Handler) GetBreakers() map[string]*CircuitBreaker {
+	return h.breakers
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -60,26 +70,65 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. Lookup Provider
-	provider, ok := h.providers[req.Provider]
-	if !ok {
-		writeError(w, fmt.Sprintf("unknown provider: %s", req.Provider), http.StatusBadRequest)
-		return
+	// 3. Execute Request with Circuit Breaker and Failover (only the owner gets here)
+	start := time.Now()
+	requestedProvider := req.Provider
+	var resp *models.GatewayResponse
+	var err error
+
+	executeWithBreaker := func(pName string) (*models.GatewayResponse, error) {
+		prov, ok := h.providers[pName]
+		if !ok {
+			return nil, fmt.Errorf("provider %s not configured", pName)
+		}
+		cb := h.breakers[pName]
+
+		if !cb.Allow() {
+			return nil, fmt.Errorf("circuit breaker open for %s", pName)
+		}
+
+		// Make the actual provider call
+		res, pErr := prov.Complete(r.Context(), &req)
+		if pErr != nil {
+			cb.RecordFailure()
+			return nil, pErr
+		}
+		
+		cb.RecordSuccess()
+		return res, nil
 	}
 
-	// 3. Execute Request (only the owner gets here)
-	start := time.Now()
-	resp, err := provider.Complete(r.Context(), &req)
+	// Try Primary
+	resp, err = executeWithBreaker(requestedProvider)
 	if err != nil {
-		pErr, isProviderErr := IsProviderError(err)
-		if isProviderErr {
+		// Determine secondary/fallback provider
+		var fallback string
+		if requestedProvider == "groq" {
+			fallback = "gemini"
+		} else if requestedProvider == "gemini" {
+			fallback = "groq"
+		}
+
+		// Try Fallback
+		var fallbackErr error
+		if fallback != "" && h.providers[fallback] != nil {
+			// Update the request provider string to match the fallback
+			req.Provider = fallback
+			resp, fallbackErr = executeWithBreaker(fallback)
+		} else {
+			fallbackErr = fmt.Errorf("no fallback available")
+		}
+
+		if fallbackErr != nil {
+			// Both providers failed or their breakers are OPEN
 			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(pErr.StatusCode)
-			json.NewEncoder(w).Encode(map[string]string{"error": pErr.Message})
+			w.WriteHeader(http.StatusServiceUnavailable)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":               "all providers unavailable",
+				"retry_after_seconds": 30,
+			})
 			return
 		}
-		writeError(w, "provider request failed", http.StatusBadGateway)
-		return
 	}
 
 	// 4. Decorate Response

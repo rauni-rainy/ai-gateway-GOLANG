@@ -74,7 +74,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestedProvider := req.Provider
 	var resp *models.GatewayResponse
-	var err error
 
 	executeWithBreaker := func(pName string) (*models.GatewayResponse, error) {
 		prov, ok := h.providers[pName]

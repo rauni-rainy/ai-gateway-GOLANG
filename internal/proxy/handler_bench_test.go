@@ -32,19 +32,19 @@ func BenchmarkCacheHit(b *testing.B) {
 			panic("provider should not be called on cache hit")
 		},
 	}
-	providers := map[string]proxy.Provider{"mock": mockProv}
+	providers := map[string]proxy.Provider{"groq": mockProv}
 	handler := proxy.NewHandler(c, nil, mockStore, providers)
 
 	mw := middleware.Auth(mockStore)
 	server := mw(handler)
 
 	reqObj := models.GatewayRequest{
-		Provider:  "mock",
+		Provider:  "groq",
 		Model:     "llama3",
 		MaxTokens: 100,
 		Messages:  []models.Message{{Role: "user", Content: "bench hit"}},
 	}
-	respObj := &models.GatewayResponse{Provider: "mock", Content: "cached response"}
+	respObj := &models.GatewayResponse{Provider: "groq", Content: "cached response"}
 	c.Set(context.Background(), &reqObj, respObj)
 
 	reqBytes, _ := json.Marshal(reqObj)
@@ -79,14 +79,14 @@ func BenchmarkCacheMiss(b *testing.B) {
 			return &models.GatewayResponse{Provider: "mock", Content: "fresh"}, nil
 		},
 	}
-	providers := map[string]proxy.Provider{"mock": mockProv}
+	providers := map[string]proxy.Provider{"groq": mockProv}
 	handler := proxy.NewHandler(c, nil, mockStore, providers)
 
 	mw := middleware.Auth(mockStore)
 	server := mw(handler)
 
 	reqObj := models.GatewayRequest{
-		Provider:  "mock",
+		Provider:  "groq",
 		Model:     "llama3",
 		MaxTokens: 100,
 		Messages:  []models.Message{{Role: "user", Content: "bench miss"}},

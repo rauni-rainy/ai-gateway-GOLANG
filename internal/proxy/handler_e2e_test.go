@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi/v5"
+	chi "github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
+	pgx "github.com/jackc/pgx/v5"
 	"github.com/rauni-rainy/ai-gateway/internal/cache"
 	"github.com/rauni-rainy/ai-gateway/internal/middleware"
 	"github.com/rauni-rainy/ai-gateway/internal/models"

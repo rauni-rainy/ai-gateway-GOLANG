@@ -31,7 +31,7 @@ export function cacheHitScenario() {
     const url = 'http://localhost:8080/v1/complete';
     const payload = JSON.stringify({
         provider: 'groq',
-        model: 'llama3-8b-8192',
+        model: 'llama-3.1-8b-instant',
         max_tokens: 100,
         messages: [{ role: 'user', content: 'What is the speed of light?' }],
     });
@@ -45,9 +45,9 @@ export function cacheHitScenario() {
     };
 
     const res = http.post(url, payload, params);
-    
+
     rateLimitRate.add(res.status === 429);
-    
+
     check(res, {
         'status is 200 or 429': (r) => r.status === 200 || r.status === 429,
     });
@@ -58,7 +58,7 @@ export function cacheMissScenario() {
     const randomSeed = Math.random().toString(36).substring(7);
     const payload = JSON.stringify({
         provider: 'groq',
-        model: 'llama3-8b-8192',
+        model: 'llama-3.1-8b-instant',
         max_tokens: 100,
         messages: [{ role: 'user', content: `What is the speed of light? Seed: ${randomSeed}` }],
     });

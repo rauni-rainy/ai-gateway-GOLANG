@@ -77,6 +77,8 @@ func main() {
 	if cfg.GeminiKey != "" {
 		providers["gemini"] = proxy.NewGemini(cfg.GeminiKey)
 	}
+	// Always enable mock provider for load testing
+	providers["mock"] = proxy.NewMock()
 
 	rateLimiter := middleware.NewRateLimiter(cacheLayer.Client())
 	budgetEnforcer := middleware.NewBudgetEnforcer(storeLayer, cacheLayer.Client())

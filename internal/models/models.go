@@ -21,8 +21,8 @@ type GatewayRequest struct {
 }
 
 func (r *GatewayRequest) Validate() error {
-	if r.Provider != "groq" && r.Provider != "gemini" {
-		return fmt.Errorf("provider must be groq or gemini, got: %s", r.Provider)
+	if r.Provider != "groq" && r.Provider != "gemini" && r.Provider != "mock" {
+		return fmt.Errorf("provider must be groq, gemini, or mock, got: %s", r.Provider)
 	}
 	if len(r.Messages) == 0 {
 		return fmt.Errorf("messages must not be empty")

@@ -73,7 +73,8 @@ func (s *Store) GetAPIKey(ctx context.Context, rawKey string) (*models.APIKey, e
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrKeyNotFound
 		}
-		return nil, fmt.Errorf("failed to query api key: %w", err)
+		fmt.Printf("GetAPIKey DB scan error: %v\n", err)
+		return nil, fmt.Errorf("failed to get api key: %w", err)
 	}
 
 	return &key, nil

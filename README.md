@@ -35,7 +35,7 @@ make migrate
 curl -X POST http://localhost:8080/v1/complete \
      -H "Authorization: Bearer YOUR_API_KEY" \
      -H "Content-Type: application/json" \
-     -d '{"provider":"groq", "model":"llama3-8b-8192", "max_tokens":100, "messages":[{"role":"user", "content":"hello"}]}'
+     -d '{"provider":"groq", "model":"llama-3.1-8b-instant", "max_tokens":100, "messages":[{"role":"user", "content":"hello"}]}'
 ```
 
 ## API Reference

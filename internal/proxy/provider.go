@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/rauni-rainy/ai-gateway/internal/models"
 )
 
 type Provider interface {
 	Complete(ctx context.Context, req *models.GatewayRequest) (*models.GatewayResponse, error)
+	CompleteStream(ctx context.Context, req *models.GatewayRequest, w http.ResponseWriter) (*models.Usage, error)
 }
 
 type ProviderError struct {

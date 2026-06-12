@@ -166,3 +166,6 @@ func (p *GeminiProvider) Complete(ctx context.Context, req *models.GatewayReques
 }
 
 // TODO: streaming via Gemini SSE
+func (p *GeminiProvider) CompleteStream(ctx context.Context, req *models.GatewayRequest, w http.ResponseWriter) (*models.Usage, error) {
+	return nil, fmt.Errorf("gemini streaming not yet implemented")
+}

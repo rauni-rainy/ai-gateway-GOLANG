@@ -56,6 +56,73 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Safe because Auth middleware guarantees it is populated
 	apiKey, _ := middleware.APIKeyFromContext(r.Context())
 
+	// 0. Handle Streaming
+	if req.Stream {
+		start := time.Now()
+		requestedProvider := req.Provider
+
+		executeStreamWithBreaker := func(pName string) (*models.Usage, error) {
+			prov, ok := h.providers[pName]
+			if !ok {
+				return nil, fmt.Errorf("provider %s not configured", pName)
+			}
+			cb := h.breakers[pName]
+
+			if !cb.Allow() {
+				return nil, fmt.Errorf("circuit breaker open for %s", pName)
+			}
+
+			usage, pErr := prov.CompleteStream(r.Context(), &req, w)
+			if pErr != nil {
+				cb.RecordFailure()
+				return nil, pErr
+			}
+
+			cb.RecordSuccess()
+			return usage, nil
+		}
+
+		usage, err := executeStreamWithBreaker(requestedProvider)
+		if err != nil {
+			var fallback string
+			if requestedProvider == "groq" {
+				fallback = "gemini"
+			} else if requestedProvider == "gemini" {
+				fallback = "groq"
+			}
+
+			var fallbackErr error
+			if fallback != "" && h.providers[fallback] != nil {
+				req.Provider = fallback
+				usage, fallbackErr = executeStreamWithBreaker(fallback)
+			} else {
+				fallbackErr = fmt.Errorf("no fallback available")
+			}
+
+			if fallbackErr != nil {
+				// We don't write 503 here because CompleteStream sets headers beforehand.
+				// If CompleteStream failed before writing headers, it could write 503, but it's tricky.
+				// For now, assume headers might be flushed. We just return.
+				return
+			}
+		}
+
+		// Log streaming response
+		respObj := &models.GatewayResponse{
+			Provider:  req.Provider,
+			Model:     req.Model,
+			LatencyMS: time.Since(start).Milliseconds(),
+			Cached:    false,
+		}
+		if usage != nil {
+			respObj.Usage = *usage
+			respObj.CostUSD = float64(usage.PromptTokens)*0.000003 + float64(usage.CompletionTokens)*0.000015
+		}
+
+		h.logAsync(apiKey.ID, respObj, http.StatusOK)
+		return
+	}
+
 	// 0. Check Semantic Cache
 	if h.semanticCache != nil {
 		if semCached, _ := h.semanticCache.FindSimilar(r.Context(), &req); semCached != nil {

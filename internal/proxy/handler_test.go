@@ -28,6 +28,10 @@ func (m *MockProvider) Complete(ctx context.Context, req *models.GatewayRequest)
 	return &models.GatewayResponse{Provider: "groq", Content: "mocked"}, nil
 }
 
+func (m *MockProvider) CompleteStream(ctx context.Context, req *models.GatewayRequest, w http.ResponseWriter) (*models.Usage, error) {
+	return &models.Usage{PromptTokens: 10, CompletionTokens: 20, TotalTokens: 30}, nil
+}
+
 type MockStore struct{}
 
 func (m *MockStore) GetAPIKey(ctx context.Context, rawKey string) (*models.APIKey, error) {

@@ -1,12 +1,14 @@
 package proxy
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/rauni-rainy/ai-gateway/internal/models"
@@ -40,6 +42,7 @@ type groqRequest struct {
 	Messages    []groqMessage `json:"messages"`
 	MaxTokens   int           `json:"max_tokens,omitempty"`
 	Temperature float64       `json:"temperature,omitempty"`
+	Stream      bool          `json:"stream,omitempty"`
 }
 
 type groqResponse struct {
@@ -138,4 +141,96 @@ func (p *GroqProvider) Complete(ctx context.Context, req *models.GatewayRequest)
 		},
 		CostUSD: cost,
 	}, nil
+}
+
+func (p *GroqProvider) CompleteStream(ctx context.Context, req *models.GatewayRequest, w http.ResponseWriter) (*models.Usage, error) {
+	var groqMsgs []groqMessage
+
+	if req.SystemPrompt != "" {
+		groqMsgs = append(groqMsgs, groqMessage{
+			Role:    "system",
+			Content: req.SystemPrompt,
+		})
+	}
+
+	for _, m := range req.Messages {
+		groqMsgs = append(groqMsgs, groqMessage{
+			Role:    m.Role,
+			Content: m.Content,
+		})
+	}
+
+	apiReq := groqRequest{
+		Model:       req.Model,
+		Messages:    groqMsgs,
+		MaxTokens:   req.MaxTokens,
+		Temperature: req.Temperature,
+		Stream:      true,
+	}
+
+	bodyBytes, err := json.Marshal(apiReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal groq request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.BaseURL, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create http request: %w", err)
+	}
+
+	httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	// Set response headers before reading
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	resp, err := p.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("http request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, &ProviderError{
+			StatusCode: resp.StatusCode,
+			Message:    string(respBody),
+			Provider:   "groq",
+		}
+	}
+
+	scanner := bufio.NewScanner(resp.Body)
+	var finalUsage models.Usage
+
+	for scanner.Scan() {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			line := scanner.Text()
+			if strings.HasPrefix(line, "data: ") {
+				if line == "data: [DONE]" {
+					fmt.Fprintf(w, "data: [DONE]\n\n")
+					if f, ok := w.(http.Flusher); ok {
+						f.Flush()
+					}
+					return &finalUsage, nil
+				}
+				
+				fmt.Fprintf(w, "%s\n\n", line)
+				if f, ok := w.(http.Flusher); ok {
+					f.Flush()
+				}
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading stream: %w", err)
+	}
+
+	return &finalUsage, nil
 }

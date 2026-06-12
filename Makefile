@@ -19,7 +19,7 @@ build:
 	CGO_ENABLED=0 go build -o bin/gateway ./cmd/server
 
 migrate:
-	psql $$DATABASE_URL -f migrations/001_schema.sql
+	for f in migrations/*.sql; do psql $$DATABASE_URL -f "$$f"; done
 
 lint:
 	golangci-lint run

@@ -31,7 +31,7 @@ export function cacheHitScenario() {
     const url = 'http://localhost:8080/v1/complete';
     const payload = JSON.stringify({
         provider: 'groq',
-        model: 'llama3',
+        model: 'llama3-8b-8192',
         max_tokens: 100,
         messages: [{ role: 'user', content: 'What is the speed of light?' }],
     });
@@ -58,7 +58,7 @@ export function cacheMissScenario() {
     const randomSeed = Math.random().toString(36).substring(7);
     const payload = JSON.stringify({
         provider: 'groq',
-        model: 'llama3',
+        model: 'llama3-8b-8192',
         max_tokens: 100,
         messages: [{ role: 'user', content: `What is the speed of light? Seed: ${randomSeed}` }],
     });

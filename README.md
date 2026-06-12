@@ -35,7 +35,7 @@ make migrate
 curl -X POST http://localhost:8080/v1/complete \
      -H "Authorization: Bearer YOUR_API_KEY" \
      -H "Content-Type: application/json" \
-     -d '{"provider":"groq", "model":"llama3", "max_tokens":100, "messages":[{"role":"user", "content":"hello"}]}'
+     -d '{"provider":"groq", "model":"llama3-8b-8192", "max_tokens":100, "messages":[{"role":"user", "content":"hello"}]}'
 ```
 
 ## API Reference
@@ -46,7 +46,7 @@ curl -X POST http://localhost:8080/v1/complete \
 ```json
 {
   "provider": "groq",
-  "model": "llama3",
+  "model": "llama3-8b-8192",
   "system_prompt": "You are a helpful assistant.",
   "messages": [
     {
@@ -65,7 +65,7 @@ curl -X POST http://localhost:8080/v1/complete \
 {
   "id": "123e4567-e89b-12d3-a456-426614174000",
   "provider": "groq",
-  "model": "llama3",
+  "model": "llama3-8b-8192",
   "content": "The speed of light in a vacuum is exactly 299,792,458 meters per second.",
   "usage": {
     "prompt_tokens": 15,

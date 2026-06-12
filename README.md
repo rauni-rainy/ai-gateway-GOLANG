@@ -13,6 +13,7 @@ So, I took a step back and decided to build my own ultra-fast AI API Gateway in 
  Building a highly concurrent system in Go is a wild ride, and I hit some absolutely fascinating distributed systems bottlenecks along the way. Here is the story of the errors I encountered, how I thought through them, and how I fixed them.
 
 ---
+<img width="1131" height="593" alt="Screenshot 2026-06-13 000143" src="https://github.com/user-attachments/assets/f5b60e0d-3c38-4d4a-9393-d422c81d0a75" />
 
 ## 1. The Circuit Breaker & The 429 Rate Limit
 
@@ -23,6 +24,7 @@ So, I took a step back and decided to build my own ultra-fast AI API Gateway in 
 **My Thought Process:** Why did every request fail? I realized Groq's free tier has a strict rate limit of about 30 requests per minute. When I blasted it with 110 concurrent requests, Groq instantly returned `429 Too Many Requests`. But my gateway didn't just pass back the 429. It triggered my **Circuit Breaker**! The circuit breaker detected the massive spike in upstream errors, tripped OPEN to protect the system, and started returning `503 Service Unavailable`.
 
 **The Learning:** This was actually a huge success! The gateway worked exactly as intended. It intercepted a DDoS-level spike of traffic, protected my upstream LLM provider from getting spammed (which could get my API key banned), and safely failed the requests.
+<img width="1038" height="870" alt="image" src="https://github.com/user-attachments/assets/2254bd20-6300-434b-9789-d31c510d21a5" />
 
 ---
 
@@ -45,6 +47,7 @@ So, I took a step back and decided to build my own ultra-fast AI API Gateway in 
 **The Approach:** I built a custom **Mock Provider** directly into the gateway. The Mock Provider simulated an LLM by intentionally sleeping for exactly 200 milliseconds and then returning a standard JSON response. 
 
 **The Result:** This was a game-changer. By routing my load test to `"provider": "mock"`, I completely isolated my Go server from upstream constraints. This allowed me to blast thousands of requests per second with `k6` to see my system's true scaling capabilities!
+<img width="1086" height="860" alt="Screenshot 2026-06-13 001441" src="https://github.com/user-attachments/assets/0494b450-d7ac-4466-b149-04ec1cc7f13d" />
 
 ---
 
@@ -62,6 +65,7 @@ So, I took a step back and decided to build my own ultra-fast AI API Gateway in 
    - The default Go PostgreSQL driver (`pgxpool`) only allows a small number of connections (e.g., 8).
    - The 2,000 background logging tasks completely flooded the connection pool!
    - When a *new* incoming API request tried to run `GetAPIKey()` to verify a token, it found all connections occupied by the failing logging tasks, so it was forced to wait 5 seconds in line just to get a connection to Singapore!
+<img width="1053" height="821" alt="Screenshot 2026-06-13 001535" src="https://github.com/user-attachments/assets/0d8f7b56-a734-49e4-88d5-f90b43859c53" />
 
 **The Correction:** 
 1. **Connection Pool Sizing:** I dynamically scaled up my connection pool by appending `&pool_max_conns=100` to my `DATABASE_URL` in my `.env` file.

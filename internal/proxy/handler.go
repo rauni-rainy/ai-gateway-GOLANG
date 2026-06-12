@@ -184,8 +184,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		var fallback string
 		if requestedProvider == "groq" {
 			fallback = "gemini"
+			req.Model = "gemini-1.5-flash"
 		} else if requestedProvider == "gemini" {
 			fallback = "groq"
+			req.Model = "llama-3.1-8b-instant"
 		}
 
 		// Try Fallback

@@ -25,7 +25,7 @@ So, I took a step back and decided to build my own ultra-fast AI API Gateway in 
 
 **The Learning:** This was actually a huge success! The gateway worked exactly as intended. It intercepted a DDoS-level spike of traffic, protected my upstream LLM provider from getting spammed (which could get my API key banned), and safely failed the requests.
 <img width="1038" height="870" alt="image" src="https://github.com/user-attachments/assets/2254bd20-6300-434b-9789-d31c510d21a5" />
-
+** here in the image you can see in the same next response the cached is set to TRUE and the latency is set to zero.**
 ---
 
 ## 2. The Cache Stampede & The 39-Second Hang

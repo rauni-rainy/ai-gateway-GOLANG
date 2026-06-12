@@ -51,13 +51,14 @@ type GatewayResponse struct {
 }
 
 type APIKey struct {
-	ID             string
-	KeyHash        string
-	Name           string
-	RateLimitRPS   int
-	DailyBudgetUSD *float64
-	IsActive       bool
-	CreatedAt      time.Time
+	ID             string    `json:"id"`
+	KeyHash        string    `json:"-"`
+	Name           string    `json:"name"`
+	RateLimitRPS   int       `json:"rate_limit_rps"`
+	DailyBudgetUSD *float64  `json:"daily_budget_usd"`
+	IsActive       bool      `json:"is_active"`
+	IsAdmin        bool      `json:"is_admin"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
 type RequestLog struct {
@@ -73,4 +74,18 @@ type RequestLog struct {
 	StatusCode       int
 	CostUSD          float64
 	CreatedAt        time.Time
+}
+
+type AdminStats struct {
+	TotalRequests      int               `json:"total_requests"`
+	CachedRequests     int               `json:"cached_requests"`
+	TotalCostUSD       float64           `json:"total_cost_usd"`
+	AvgLatencyMS       float64           `json:"avg_latency_ms"`
+	P95LatencyMS       float64           `json:"p95_latency_ms"`
+	RequestsByProvider map[string]int    `json:"requests_by_provider"`
+}
+
+type KeyStats struct {
+	APIKeyID     string `json:"api_key_id"`
+	RequestCount int    `json:"request_count"`
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/joho/godotenv"
+	"github.com/rauni-rainy/ai-gateway/internal/admin"
 	"github.com/rauni-rainy/ai-gateway/internal/cache"
 	"github.com/rauni-rainy/ai-gateway/internal/config"
 	"github.com/rauni-rainy/ai-gateway/internal/middleware"
@@ -81,6 +82,7 @@ func main() {
 	budgetEnforcer := middleware.NewBudgetEnforcer(storeLayer, cacheLayer.Client())
 	semanticCache := cache.NewSemanticCache(storeLayer.Pool(), &cache.TFIDFEmbedder{})
 	proxyHandler := proxy.NewHandler(cacheLayer, semanticCache, storeLayer, providers)
+	adminHandler := admin.NewHandler(storeLayer)
 
 	r := chi.NewRouter()
 
@@ -145,6 +147,15 @@ func main() {
 			w.WriteHeader(http.StatusOK)
 			json.NewEncoder(w).Encode(status)
 		})
+	})
+
+	// Admin routes
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.Auth(storeLayer))
+		r.Use(middleware.AdminAccess)
+		r.Get("/admin/stats", adminHandler.Stats)
+		r.Get("/admin/keys", adminHandler.ListKeys)
+		r.Post("/admin/keys", adminHandler.CreateKey)
 	})
 
 	server := &http.Server{

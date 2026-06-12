@@ -2,7 +2,15 @@
 
 Welcome to my API Gateway project! I built this project to act as an ultra-fast, production-ready reverse proxy for LLM APIs like Groq and Gemini. 
 
-But I didn't want this to be just another "typical" GitHub README. Instead, I want this to be a raw, conversational notebook of my learnings. Building a highly concurrent system in Go is a wild ride, and I hit some absolutely fascinating distributed systems bottlenecks along the way. Here is the story of the errors I encountered, how I thought through them, and how I fixed them.
+When I first started building a tool designed to help schools generate assignments using AI I thought the hardest part was going to be the prompting and the AI itself.
+
+But once real traffic started hitting the application, I quickly realized the actual challenge wasn't the AI at all. It was the infrastructure.
+
+We were hitting provider rate limits almost immediately. Every time a teacher regenerated an assignment, or dozens of students asked the exact same question, we were paying for the exact same expensive tokens and waiting full seconds for identical responses. The system was bleeding latency and money.
+
+So, I took a step back and decided to build my own ultra-fast AI API Gateway in Go to sit between my applications and providers like Groq and Gemini. I wanted to solve three core problems: Cost, Latency, and Resiliency.
+
+ Building a highly concurrent system in Go is a wild ride, and I hit some absolutely fascinating distributed systems bottlenecks along the way. Here is the story of the errors I encountered, how I thought through them, and how I fixed them.
 
 ---
 
@@ -44,7 +52,7 @@ But I didn't want this to be just another "typical" GitHub README. Instead, I wa
 
 **The Setup:** With the Mock Provider running perfectly, I re-ran the `k6` load test. 
 
-**The Error:** I got a 100% success rate (almost 2,000 requests processed successfully!), BUT my `p(95)` latency was still incredibly high—sitting at around **5.2 seconds**. On top of that, my terminal was spamming database errors: `violates check constraint "request_logs_provider_check"`.
+**The Error:** I got a 100% success rate (almost 2,000 requests processed successfully!), BUT my `p(95)` latency was still incredibly high—sitting at around **5.2 seconds** and later to 3.29 seconds. On top of that, my terminal was spamming database errors: `violates check constraint "request_logs_provider_check"`.
 
 **My Thought Process:** This was the most fascinating bug of all. Let's break it down:
 1. **The DB Constraint:** My PostgreSQL schema had a safety check: `CHECK (provider IN ('groq', 'gemini'))`. Because I was using the `"mock"` provider, the database violently rejected every attempt to insert a request log!
